@@ -8,3 +8,6 @@ This is no more safe nor dangerous than the other cargo loop luas [already] out 
   
 ## Install  
 Drag everything except the readme.md and LICENSE file into your Lua Scripts. Done.
+
+## Protip  
+Using anti-crash cam on Stand may make transactions process faster. Up to you though. 
