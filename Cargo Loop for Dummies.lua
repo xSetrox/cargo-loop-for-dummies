@@ -1,6 +1,7 @@
 util.require_natives("1663599433")
 -- disable idiot proof if you are an idiot or actually know what you are doing and start MB on its own
 local idiot_proof = true
+local should_prepare_crates = true
 
 -- change this if you know what you are doing and maybe speak a different language 
 local your_fucking_language = "en"
@@ -73,17 +74,24 @@ end)
 
 
 local money_loop = false
-local initial_player_money = 0
 menu.toggle(menu.my_root(), "Sell crates loop", {"sellcratesloop"}, "Auto-sells the crates of the CURRENTLY SELECTED WAREHOUSE IN MB.", function(on)
     money_loop = on
-    initial_player_money = players.get_money(players.user())
+    if should_prepare_crates then
+        util.toast("Preparing loop, please wait...")
+        STATS.SET_PACKED_STAT_BOOL_CODE(32359, 1)
+        util.yield(1000)
+        should_prepare_crates = false
+    end
+
     while true do 
-        if not money_loop then 
-            break 
+        if not money_loop then
+            break
         end
         if util.is_session_started() then
             STATS.SET_PACKED_STAT_BOOL_CODE(32359, 1)
             menu.trigger_commands("sellacrate")
+        else 
+            menu.trigger_commands("sellcratesloop off")
         end
         util.yield(sell_delay)
     end
@@ -98,9 +106,8 @@ menu.action(menu.my_root(), "Press to unstuck", {}, "Press if the warehouse scre
     ENTITY.FREEZE_ENTITY_POSITION(players.user_ped(), false)
 end)
 
-while true do 
-    if money_loop then
-        util.draw_debug_text("MONEY EARNED: $" .. format_int(players.get_money(players.user()) - initial_player_money))
-    end
-    util.yield()
-end
+util.on_transition_finished(function()
+    should_prepare_crates = true
+
+end)
+util.keep_running()
