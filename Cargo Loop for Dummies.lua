@@ -89,8 +89,13 @@ menu.toggle(menu.my_root(), "Sell crates loop", {"sellcratesloop"}, "Auto-sells 
     end
 end)
 
-menu.action(menu.my_root(), "Press if stuck", {}, "Press if the warehouse screen/scaleform gets stuck. It will forcequit you to SP, but you at least wont have to restart your game.", function()
-    menu.trigger_commands("forcequittosp")
+menu.action(menu.my_root(), "Press to unstuck", {}, "Press if the warehouse screen/scaleform gets stuck. No longer quits to SP, thank you Sapphire, very cool!", function()
+    util.spoof_script("appsecuroserv", SCRIPT.TERMINATE_THIS_THREAD)
+    PLAYER.SET_PLAYER_CONTROL(players.user(), true, 0)
+    PAD.ENABLE_ALL_CONTROL_ACTIONS(0)
+    PAD.ENABLE_ALL_CONTROL_ACTIONS(1)
+    PAD.ENABLE_ALL_CONTROL_ACTIONS(2)
+    ENTITY.FREEZE_ENTITY_POSITION(players.user_ped(), false)
 end)
 
 while true do 
