@@ -1,7 +1,6 @@
 util.require_natives("1663599433")
 -- disable idiot proof if you are an idiot or actually know what you are doing and start MB on its own
 local idiot_proof = true
-local should_prepare_crates = true
 
 -- change this if you know what you are doing and maybe speak a different language 
 local your_fucking_language = "en"
@@ -68,34 +67,48 @@ menu.set_value(menu.ref_by_path(main_mb_path .. max_crate_sourcing_amount_path),
 menu.set_value(menu.ref_by_path(main_mb_path .. minimize_delivery_time_path), true)
 
 local sell_delay = 2000
-menu.slider(menu.my_root(), "Sell delay", {"crateselldelay"}, "The delay in MS to sell crates at. The lower, the more chance of the warehouse scaleform freezing up on you. Up to you.", 1000, 10000, 2000, 10, function(delay)
+local delay_slider = menu.slider(menu.my_root(), "Sell delay", {"crateselldelay"}, "The delay in MS to sell crates at. The lower, the more chance of the warehouse scaleform freezing up on you. Up to you.", 1000, 10000, 2000, 10, function(delay)
     sell_delay = delay
 end)
+menu.focus(delay_slider)
+
+function refill_crates()
+    for i=0, 4 do
+        STATS.SET_PACKED_STAT_BOOL_CODE(32359, i)
+    end
+end
 
 
 local money_loop = false
-menu.toggle(menu.my_root(), "Sell crates loop", {"sellcratesloop"}, "Auto-sells the crates of the CURRENTLY SELECTED WAREHOUSE IN MB.", function(on)
+menu.toggle(menu.my_root(), "Sell crates loop", {"sellcratesloop"}, "Auto-sells the crates of the CURRENTLY SELECTED WAREHOUSE IN MB. If it says the warehouse is empty, turn it off and wait a bit, then try again.", function(on)
     money_loop = on
-    if should_prepare_crates then
-        util.toast("Preparing loop, please wait...")
-        STATS.SET_PACKED_STAT_BOOL_CODE(32359, 1)
-        util.yield(1000)
-        should_prepare_crates = false
-    end
-
-    while true do 
-        if not money_loop then
-            break
+    if on then 
+        ENTITY.FREEZE_ENTITY_POSITION(players.user_ped(), true)
+        while true do 
+            if not money_loop then
+                break
+            end
+            ENTITY.SET_ENTITY_COORDS(players.user_ped(), 0, 0, 2000)
+            if util.is_session_started() then
+                refill_crates()
+                menu.trigger_commands("sellacrate")
+            else 
+                menu.trigger_commands("sellcratesloop off")
+            end
+            util.yield(sell_delay)
         end
-        if util.is_session_started() then
-            STATS.SET_PACKED_STAT_BOOL_CODE(32359, 1)
-            menu.trigger_commands("sellacrate")
-        else 
-            menu.trigger_commands("sellcratesloop off")
-        end
-        util.yield(sell_delay)
+    else
+        ENTITY.SET_ENTITY_COORDS(players.user_ped(), 0, 0, 2000)
+        ENTITY.FREEZE_ENTITY_POSITION(players.user_ped(), false)
     end
 end)
+
+util.create_tick_handler(function()
+    if money_loop then 
+        ENTITY.SET_ENTITY_COORDS(players.user_ped(), 0, 0, 2000)
+    end
+end)
+
 
 menu.action(menu.my_root(), "Press to unstuck", {}, "Press if the warehouse screen/scaleform gets stuck. No longer quits to SP, thank you Sapphire, very cool!", function()
     util.spoof_script("appsecuroserv", SCRIPT.TERMINATE_THIS_THREAD)
@@ -106,8 +119,4 @@ menu.action(menu.my_root(), "Press to unstuck", {}, "Press if the warehouse scre
     ENTITY.FREEZE_ENTITY_POSITION(players.user_ped(), false)
 end)
 
-util.on_transition_finished(function()
-    should_prepare_crates = true
-
-end)
 util.keep_running()
