@@ -1,6 +1,7 @@
 util.require_natives("1663599433")
 -- disable idiot proof if you are an idiot or actually know what you are doing and start MB on its own
 local idiot_proof = true
+local current_warehouse_index = 0
 
 -- change this if you know what you are doing and maybe speak a different language 
 local your_fucking_language = "en"
@@ -72,10 +73,13 @@ local delay_slider = menu.slider(menu.my_root(), "Sell delay", {"crateselldelay"
 end)
 menu.focus(delay_slider)
 
+local function warehouse_index_to_id(index)
+    return (32359 + index)
+end
+
 function refill_crates()
-    for i=0, 4 do
-        STATS.SET_PACKED_STAT_BOOL_CODE(32359, i, util.get_char_slot())
-    end
+    local warehouse_id = warehouse_index_to_id(current_warehouse_index)
+    STATS.SET_PACKED_STAT_BOOL_CODE(warehouse_id, true, util.get_char_slot())
 end
 
 
@@ -103,10 +107,12 @@ menu.toggle(menu.my_root(), "Sell crates loop", {"sellcratesloop"}, "Auto-sells 
     end
 end)
 
+local warehouse_picker = menu.ref_by_command_name("selectcargowarehouse")
 util.create_tick_handler(function()
     if money_loop then 
         ENTITY.SET_ENTITY_COORDS(players.user_ped(), 0, 0, 2000)
     end
+    current_warehouse_index = menu.get_value(warehouse_picker)
 end)
 
 
