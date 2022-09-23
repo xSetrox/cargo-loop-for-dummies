@@ -74,7 +74,7 @@ menu.focus(delay_slider)
 
 function refill_crates()
     for i=0, 4 do
-        STATS.SET_PACKED_STAT_BOOL_CODE(32359, i)
+        STATS.SET_PACKED_STAT_BOOL_CODE(32359, i, util.get_char_slot())
     end
 end
 
