@@ -1,128 +1,151 @@
-util.require_natives("1663599433")
--- disable idiot proof if you are an idiot or actually know what you are doing and start MB on its own
-local idiot_proof = true
-local current_warehouse_index = 0
-
--- change this if you know what you are doing and maybe speak a different language 
-local your_fucking_language = "en"
-local main_mb_path = "Stand>Lua Scripts>MusinessBanager"
-local relative_lang_path = ">Language"
-local relative_special_cargo_path = ">Special Cargo"
-local max_crate_sourcing_amount_path = ">Special Cargo>Max Crate Sourcing Amount"
-local minimize_delivery_time_path = ">Special Cargo>Minimize Delivery Time"
-local find_safer_ways = ">Find safer ways to make money"
-
-local settings_bullshit = {
-    noidlekick = "on",
-    noidlecam = "on",
-    monitorcargo = "on",
-    maxsellcargo = "on",
-    nobuycdcargo = "on",
-    nosellcdcargo = "on",
-    autocompletespecialbuy = "on",
-    autocompletespecialsell = "on"
-}
-
-function does_path_exist(path)
-    success, error_msg = pcall(menu.ref_by_path, path)
-    return success
-end
-
-local mb_dir = filesystem.scripts_dir() .. '\\MusinessBanager.lua'
-if not filesystem.exists(mb_dir) and not SCRIPT_SILENT_START then
-    util.toast("Install Musiness Banager before using this.")
+if not SCRIPT_MANUAL_START then
     util.stop_script()
 end
 
-function wait_until_path_is_available(path, message)
+-- disable idiot proof if you are an idiot or actually know what you are doing and start MB on its own
+local idiot_proof = true
+
+-- change this if you know what you are doing and maybe speak a different language 
+local your_fucking_language = "en"
+
+util.require_natives("1663599433")
+util.ensure_package_is_installed("lua/MusinessBanager")
+
+local function does_path_exist(path)
+    return menu.ref_by_path(path):isValid()
+end
+
+local function wait_until_path_is_available(path, message)
     while true do
-        if not does_path_exist(path) and not SCRIPT_SILENT_START then util.toast(message) else break end
+        if not does_path_exist(path) then
+            if not SCRIPT_SILENT_START then
+                util.toast(message)
+            end
+        else
+            break
+        end
         util.yield()
     end
 end
 
--- credits to https://stackoverflow.com/questions/10989788/format-integer-in-lua
-function format_int(number)
-    local i, j, minus, int, fraction = tostring(number):find('([-]?)(%d+)([.]?%d*)')
-    int = int:reverse():gsub("(%d%d%d)", "%1,")
-    return minus .. int:reverse():gsub("^,", "") .. fraction
-end
-
-if idiot_proof and not does_path_exist(main_mb_path .. find_safer_ways) then
-    menu.trigger_commands("luamusinessbanager")
-    wait_until_path_is_available(main_mb_path .. relative_lang_path, "Waiting for MB to initialize...")
-    menu.trigger_commands("mblang " .. your_fucking_language)
-    wait_until_path_is_available(main_mb_path .. relative_special_cargo_path, "Waiting for MB to load your language. If you see a warning, accept it.")
-    util.toast("Initialization done.")
-else
-    if not SCRIPT_SILENT_START then 
-        util.toast("MB is already loaded. Nice!")
-    end
-end
-
--- force required settings
-for k,v in pairs(settings_bullshit) do 
-    menu.trigger_commands(k .. " " .. v)
-end
-menu.set_value(menu.ref_by_path(main_mb_path .. max_crate_sourcing_amount_path), true)
-menu.set_value(menu.ref_by_path(main_mb_path .. minimize_delivery_time_path), true)
-
-local sell_delay = 2000
-local delay_slider = menu.slider(menu.my_root(), "Sell delay", {"crateselldelay"}, "The delay in MS to sell crates at. The lower, the more chance of the warehouse scaleform freezing up on you. Up to you.", 1000, 10000, 2000, 10, function(delay)
-    sell_delay = delay
-end)
-menu.focus(delay_slider)
-
-local function warehouse_index_to_id(index)
-    return (32359 + index)
-end
-
-function refill_crates()
-    local warehouse_id = warehouse_index_to_id(current_warehouse_index)
-    STATS.SET_PACKED_STAT_BOOL_CODE(warehouse_id, true, util.get_char_slot())
-end
-
-
-local money_loop = false
-menu.toggle(menu.my_root(), "Sell crates loop", {"sellcratesloop"}, "Auto-sells the crates of the CURRENTLY SELECTED WAREHOUSE IN MB. If it says the warehouse is empty, turn it off and wait a bit, then try again.", function(on)
-    money_loop = on
-    if on then 
-        ENTITY.FREEZE_ENTITY_POSITION(players.user_ped(), true)
-        while true do 
-            if not money_loop then
-                break
-            end
-            ENTITY.SET_ENTITY_COORDS(players.user_ped(), 0, 0, 2000)
-            if util.is_session_started() then
-                refill_crates()
-                menu.trigger_commands("sellacrate")
-            else 
-                menu.trigger_commands("sellcratesloop off")
-            end
-            util.yield(sell_delay)
-        end
-    else
-        ENTITY.SET_ENTITY_COORDS(players.user_ped(), 0, 0, 2000)
-        ENTITY.FREEZE_ENTITY_POSITION(players.user_ped(), false)
-    end
-end)
-
-local warehouse_picker = menu.ref_by_command_name("selectcargowarehouse")
-util.create_tick_handler(function()
-    if money_loop then 
-        ENTITY.SET_ENTITY_COORDS(players.user_ped(), 0, 0, 2000)
-    end
-    current_warehouse_index = menu.get_value(warehouse_picker)
-end)
-
-
-menu.action(menu.my_root(), "Press to unstuck", {}, "Press if the warehouse screen/scaleform gets stuck. No longer quits to SP, thank you Sapphire, very cool!", function()
+local function kill_appsecuroserv()
     util.spoof_script("appsecuroserv", SCRIPT.TERMINATE_THIS_THREAD)
     PLAYER.SET_PLAYER_CONTROL(players.user(), true, 0)
     PAD.ENABLE_ALL_CONTROL_ACTIONS(0)
-    PAD.ENABLE_ALL_CONTROL_ACTIONS(1)
-    PAD.ENABLE_ALL_CONTROL_ACTIONS(2)
+    PAD.ENABLE_CONTROL_ACTION(2, 1, true)
+    PAD.ENABLE_CONTROL_ACTION(2, 2, true)
+    PAD.ENABLE_CONTROL_ACTION(2, 187, true)
+    PAD.ENABLE_CONTROL_ACTION(2, 188, true)
+    PAD.ENABLE_CONTROL_ACTION(2, 189, true)
+    PAD.ENABLE_CONTROL_ACTION(2, 190, true)
+    PAD.ENABLE_CONTROL_ACTION(2, 199, true)
+    PAD.ENABLE_CONTROL_ACTION(2, 200, true)
     ENTITY.FREEZE_ENTITY_POSITION(players.user_ped(), false)
+end
+
+local main_mb_path = "Stand>Lua Scripts>MusinessBanager"
+
+local relative_paths = {
+    lang =                      ">Language",
+    special_cargo =             ">Special Cargo",
+    selected_whouse =           ">Special Cargo>Warehouse",
+    teleport_to_whouse =        ">Special Cargo>Teleport to Warehouse",
+    monitor_cargo =             ">Special Cargo>Monitor",
+    max_sell_price =            ">Special Cargo>Max Sell Price",
+    nobuycd =                   ">Special Cargo>Bypass Buy Mission Cooldown",
+    nosellcd =                  ">Special Cargo>Bypass Sell Mission Cooldown",
+    acbuy =                     ">Special Cargo>Autocomplete Buy Mission",
+    acsell =                    ">Special Cargo>Autocomplete Sell Mission",
+    sellcrate =                  ">Special Cargo>Press To Sell A Crate",
+    max_crate_sourcing_amount = ">Special Cargo>Max Crate Sourcing Amount",
+    minimize_delivery_time =    ">Special Cargo>Minimize Delivery Time",
+    find_safer_ways =           ">Find safer ways to make money"
+}
+
+local mb_dir = filesystem.scripts_dir() .. 'MusinessBanager.lua'
+if not filesystem.exists(mb_dir) and not SCRIPT_SILENT_START then
+    util.toast("Install MusinessBanager before using this.")
+    util.stop_script()
+end
+
+if idiot_proof and not does_path_exist(main_mb_path .. relative_paths.find_safer_ways) then
+    menu.trigger_commands("luamusinessbanager")
+    wait_until_path_is_available(main_mb_path .. relative_paths.lang, "Waiting for MB to initialize...")
+    menu.trigger_commands("mblang " .. your_fucking_language)
+    wait_until_path_is_available(main_mb_path .. relative_paths.special_cargo, "Waiting for MB to load your language. If you see a warning, accept it.")
+    util.toast("Initialization done.")
+elseif idiot_proof and not SCRIPT_SILENT_START then 
+    util.toast("MB is already loaded. Nice!")
+end
+
+local selected_whouse_ref = menu.ref_by_path(main_mb_path .. relative_paths.selected_whouse)
+local tp_to_whouse_ref = menu.ref_by_path(main_mb_path .. relative_paths.teleport_to_whouse)
+local sell_a_crate_ref = menu.ref_by_path(main_mb_path .. relative_paths.sellcrate)
+
+local settings_to_apply = {
+    ["noidlekick"] = {ref=menu.ref_by_path("Online>Enhancements>Disable Idle/AFK Kick", 38),         state=true},
+    ["noidlecam"] = {ref=menu.ref_by_path("Game>Disables>Disable Idle Camera", 38),                 state=true},
+    ["monitorcargo"] = {ref=menu.ref_by_path(main_mb_path .. relative_paths.monitor_cargo),            state=true},
+    ["maxsellprice"] = {ref=menu.ref_by_path(main_mb_path .. relative_paths.max_sell_price),           state=true},
+    ["nobuycd"] = {ref=menu.ref_by_path(main_mb_path .. relative_paths.nobuycd),                  state=true},
+    ["nosellcd"] = {ref=menu.ref_by_path(main_mb_path .. relative_paths.nosellcd),                 state=true},
+    ["acbuy"] = {ref=menu.ref_by_path(main_mb_path .. relative_paths.acbuy),                    state=true},
+    ["acsell"] = {ref=menu.ref_by_path(main_mb_path .. relative_paths.acsell),                   state=true},
+    ["max_crate_sourcing_amount"] = {ref=menu.ref_by_path(main_mb_path .. relative_paths.max_crate_sourcing_amount),state=true},
+    ["minimize_delivery_time"] = {ref=menu.ref_by_path(main_mb_path .. relative_paths.minimize_delivery_time),   state=true},
+}
+
+local my_root = menu.my_root()
+
+local sell_delay = 2000
+my_root:slider("Sell delay", {"crateselldelay"}, "The delay in MS to sell crates at.\nThe lower, the more chance of the warehouse scaleform freezing up on you. Up to you.\n1500-2000ms delay recommended based on your network connection", 10, 10000, 2000, 10, function(delay)
+    sell_delay = delay
+end)
+my_root:action("Get crates", {"fillcurrentwhouse"}, "", function()
+    if util.is_session_started() then
+        menu.set_value(settings_to_apply.max_crate_sourcing_amount.ref, true)
+        menu.set_value(settings_to_apply.minimize_delivery_time.ref, true)
+        STATS.SET_PACKED_STAT_BOOL_CODE(32359 + menu.get_value(selected_whouse_ref), true, -1)
+    end
+end)
+local appsecuroserv = util.joaat("appsecuroserv")
+local money_loop = false
+my_root:toggle("Sell crates loop", {"sellcratesloop"}, "Auto-sells the crates of the CURRENTLY SELECTED WAREHOUSE IN MB.", function(on)
+    money_loop = on
+    while true do 
+        if not money_loop then 
+            break 
+        end
+        if util.is_session_started() then
+            -- force required settings
+            for _, data in pairs(settings_to_apply) do
+                assert(data.ref:isValid(), "MusinessBanager is not started")
+                if menu.get_value(data.ref) ~= data.state then
+                    menu.set_value(data.ref, data.state)
+                end
+            end
+            STATS.SET_PACKED_STAT_BOOL_CODE(32359 + menu.get_value(selected_whouse_ref), true, -1)
+            menu.trigger_command(sell_a_crate_ref)
+            util.yield(800)
+            PAD.SET_CONTROL_VALUE_NEXT_FRAME(2, 238, 1.0)
+            local end_time = os.time() + 2
+            while SCRIPT.GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(appsecuroserv) > 0 and os.time() < end_time do
+                util.yield()
+            end
+            if SCRIPT.GET_NUMBER_OF_THREADS_RUNNING_THE_SCRIPT_WITH_THIS_HASH(appsecuroserv) > 0 and sell_delay < 1000 then
+                kill_appsecuroserv()
+            end
+            end_time = os.time() + 5
+            while NETSHOPPING.NET_GAMESERVER_TRANSACTION_IN_PROGRESS() and os.time() < end_time do
+                util.yield()
+            end
+        end
+        util.yield(sell_delay)
+    end
+end)
+
+my_root:action("Press if stuck", {}, "Press if the warehouse screen/scaleform gets stuck.", function()
+    kill_appsecuroserv()
 end)
 
 util.keep_running()
