@@ -14,6 +14,8 @@
 
 util.require_natives("1663599433")
 util.ensure_package_is_installed("lua/MusinessBanager")
+util.ensure_package_is_installed("lua/ScaleformLib")
+local warehouse_scaleform = require("lib.ScaleformLib")("IMPORT_EXPORT_WAREHOUSE")
 
 if not SCRIPT_MANUAL_START then
     util.stop_script()
@@ -21,7 +23,16 @@ end
 
 -- change this if you know what you are doing and maybe speak a different language 
 local your_fucking_language = "en"
-
+--
+local stand_anti_crash_cam = menu.ref_by_command_name("anticrashcam")
+local stand_no_sky = menu.ref_by_command_name("nosky")
+local stand_aesthetic_light_toggle = menu.ref_by_path('World>Aesthetic Light>Aesthetic Light')
+local stand_aesthetic_light_rainbow = menu.ref_by_command_name('aestheticrainbow')
+local stand_aesthetic_light_placement = menu.ref_by_path('World>Aesthetic Light>Placement')
+local stand_aesthetic_light_intensity = menu.ref_by_path('World>Aesthetic Light>Intensity')
+local stand_aesthetic_light_range = menu.ref_by_path('World>Aesthetic Light>Range')
+local stand_time = menu.ref_by_command_name("time")
+local stand_weather = menu.ref_by_command_name("weather")
 
 local function does_path_exist(path)
     return menu.ref_by_path(path):isValid()
@@ -187,12 +198,10 @@ util.create_tick_handler(function()
     end
 end)
 
-
 local sell_delay = 2000
-my_root:slider("Sell delay", {"crateselldelay"}, "The ADDITIONAL delay in MS to sell crates at. Modify accordingly based on your connection speed. Note that the script has some hardcoded delays that cannot be changed, so this isn't the only timing factor.", 10, 10000, 2000, 10, function(delay)
+my_root:slider("Sell delay", {"cratemainselldelay"}, "The delay between each loop. Modify accordingly based on your connection speed.", 10, 10000, 2000, 10, function(delay)
     sell_delay = delay
 end)
-
 
 local refill_perc = 50
 my_root:slider("Auto-refill cargo percentage", {"autorefillperc"}, "The percentage your warehouse crates should reach before auto-refill is triggered.", 0, 100, 50, 1, function(perc)
@@ -200,28 +209,83 @@ my_root:slider("Auto-refill cargo percentage", {"autorefillperc"}, "The percenta
 end)
 
 local tryhard_mode = false
-my_root:toggle("\"In Stand We Trust\" mode", {"tryhardmode"}, "During the loop, moves you into a place that will maximize TPS, so you can save maybe a few MS on the loop and screenshare shit nobody cares about all day. Fancy!\nThis must be turned on before the sell loop is turned on to take effect.", function(on)
+local pretty_mode_toggle = my_root:toggle("Pretty mode", {"prettymode"}, "**If you are prone to epileptic seizures, do not enable this.**\nDuring the loop, moves you into a place that will maximize TPS and makes things look pretty, so you can save maybe a few MS on the loop and screenshare shit nobody cares about all day. Fancy!\nThis must be turned on before the sell loop is turned on to take effect.", function(on, click_type)
     tryhard_mode = on
-end)
+end, false)
+
+local show_earned_dough = true
+my_root:toggle("Show earned money", {"showearned"}, "", function(on, click_type)
+    show_earned_dough = on
+end, true)
+
 
 local disable_rp_gains = true
 my_root:toggle("Disable gaining RP", {}, "For when you are so fucking greedy that the sound of gaining RP makes you whine.", function(on)
     disable_rp_gains = on
 end, true)
 
-local appsecuroserv = util.joaat("appsecuroserv")
+local sell_crates = true
+my_root:toggle("Sell crates", {}, "", function(on)
+    sell_crates = on
+end, true)
+
+local refill_crates = true
+my_root:toggle("Refill crates", {}, "Respects auto-refill cargo percentage. Maybe set it to 100 if you just want to constantly refill your crates.", function(on)
+    refill_crates = on
+end, true)
+
+-- credits to https://stackoverflow.com/questions/10989788/format-integer-in-lua
+function format_int(number)
+    local i, j, minus, int, fraction = tostring(number):find('([-]?)(%d+)([.]?%d*)')
+    -- reverse the int-string and append a comma to all blocks of 3 digits
+    int = int:reverse():gsub("(%d%d%d)", "%1,")
+    -- reverse the int-string back remove an optional comma and put the 
+    -- optional minus and fractional part back
+    return minus .. int:reverse():gsub("^,", "") .. fraction
+end
+
+
 local money_loop = false
-my_root:toggle("Sell loop", {"sellcratesloop"}, "Auto-sells the crates of the CURRENTLY SELECTED WAREHOUSE IN MB.", function(on)
+local initial_money_earned = 0
+local money_earned = 0
+util.create_tick_handler(function()
+    if money_loop and show_earned_dough then
+        money_earned = MONEY.NETWORK_GET_STRING_BANK_BALANCE():gsub('%$', '') - initial_money_earned
+        local me_text = "Earned this loop: $ " .. format_int(money_earned)
+        local width = directx.get_text_size(me_text, 1.0) + 0.05
+        directx.draw_rect(0.5 - (width / 2), 0.485, width, 0.03, {r = 0, g = 0, b = 0, a = 0.5})
+        directx.draw_text(0.5, 0.5, me_text, 5, 1.0, {r = 1, g = 1, b = 1, a = 1}, true)
+    end
+end)
+
+local appsecuroserv = util.joaat("appsecuroserv")
+my_root:divider("Main loop")
+main_loop_toggle = nil
+main_loop_toggle = my_root:toggle("On", {"sellcratesloop"}, "", function(on)
     money_loop = on
-    if on then 
+    if on then
+        if not util.is_session_started() then 
+            menu.trigger_commands("sellcratesloop off")
+            return
+        end
         if tryhard_mode then 
-            ENTITY.SET_ENTITY_COORDS(players.user_ped(), 0, 0, 2500)
-            menu.set_value(freeze_player_ref, true)
+            menu.set_value(stand_anti_crash_cam, true)
+            menu.set_value(stand_no_sky, true)
+            menu.set_value(stand_time, 0)
+            menu.set_value(stand_aesthetic_light_toggle, true)
+            menu.set_value(stand_aesthetic_light_rainbow, 10)
+            menu.set_value(stand_aesthetic_light_intensity, 100000)
+            menu.set_value(stand_aesthetic_light_placement, 1)
+            menu.set_value(stand_aesthetic_light_range, 1300)
+            menu.set_value(stand_weather, 11)
         end
     else
-        menu.set_value(freeze_player_ref, false)
+        menu.set_value(stand_anti_crash_cam, false)
+        menu.set_value(stand_no_sky, false)
+        menu.set_value(stand_aesthetic_light_toggle, false)
+        menu.set_value(stand_weather, 0)
     end
-
+    initial_money_earned = MONEY.NETWORK_GET_STRING_BANK_BALANCE():gsub('%$', '')
     while true do 
         if not money_loop then 
             break 
@@ -237,7 +301,7 @@ my_root:toggle("Sell loop", {"sellcratesloop"}, "Auto-sells the crates of the CU
 
             -- refill handling
             local current_cargo_percentage = (get_cargo_amt_for_whouse(get_current_warehouse()) / get_current_warehouse_capacity()) * 100
-            if current_cargo_percentage < refill_perc then
+            if current_cargo_percentage < refill_perc and refill_crates then
                 STATS.SET_PACKED_STAT_BOOL_CODE(32359 + menu.get_value(selected_whouse_ref), true, -1)
             end
             
@@ -246,8 +310,10 @@ my_root:toggle("Sell loop", {"sellcratesloop"}, "Auto-sells the crates of the CU
                 memory.write_float(memory.script_global(262145 + 1), 0)
             end
             
-            -- selling 
-            menu.trigger_command(sell_a_crate_ref)
+            -- selling
+            if sell_crates then
+                menu.trigger_command(sell_a_crate_ref)
+            end
             util.yield(800)
             -- other stuff / auto-unstuck
             PAD.SET_CONTROL_VALUE_NEXT_FRAME(2, 238, 1.0)
@@ -262,9 +328,23 @@ my_root:toggle("Sell loop", {"sellcratesloop"}, "Auto-sells the crates of the CU
             while NETSHOPPING.NET_GAMESERVER_TRANSACTION_IN_PROGRESS() and os.time() < end_time do
                 util.yield()
             end
+        else
+            money_loop = false
+            menu.trigger_commands("sellcratesloop off")
         end
         util.yield(sell_delay)
     end
 end)
+
+my_root:action("Press to manual unstuck", {}, "If auto-unstuck doesn\'t work.", function(on)
+    kill_appsecuroserv()
+end)
+
+my_root:divider("Discord")
+async_http.init("pastebin.com", "/raw/nrMdhHwE", function(result)
+    menu.hyperlink(menu.my_root(), "Join Discord", result, "")
+end)
+async_http.dispatch()
+menu.focus(main_loop_toggle)
 
 util.keep_running()
