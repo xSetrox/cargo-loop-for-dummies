@@ -35,8 +35,9 @@ local stand_time = menu.ref_by_command_name("time")
 local stand_weather = menu.ref_by_command_name("weather")
 
 local function does_path_exist(path)
-    return menu.ref_by_path(path):isValid()
+    return menu.is_ref_valid(menu.ref_by_path(path))
 end
+
 
 local function wait_until_path_is_available(path, message)
     while true do
@@ -50,6 +51,7 @@ local function wait_until_path_is_available(path, message)
         util.yield()
     end
 end
+
 
 local function kill_appsecuroserv()
     util.spoof_script("appsecuroserv", SCRIPT.TERMINATE_THIS_THREAD)
@@ -93,9 +95,7 @@ end
 
 if not does_path_exist(main_mb_path .. relative_paths.find_safer_ways) then
     menu.trigger_commands("luamusinessbanager")
-    wait_until_path_is_available(main_mb_path .. relative_paths.lang, "Waiting for MB to initialize...")
-    menu.trigger_commands("mblang " .. your_fucking_language)
-    wait_until_path_is_available(main_mb_path .. relative_paths.special_cargo, "Waiting for MB to load your language. If you see a warning, accept it.")
+    wait_until_path_is_available(main_mb_path .. relative_paths.special_cargo, "Waiting for MB to initialize...")
     util.toast("Initialization done.")
 end
 
